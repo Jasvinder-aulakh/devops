@@ -1,0 +1,5 @@
+Bash Scripts:
+
+#Bash Commands to detected link for all ethernet nic.
+
+for i in $(ifconfig -a | sed 's/[ \t].*//;/^\(lo\|\)$/d' | grep enp); do echo STATUS=$(ethtool $i | grep 'Link detected' | awk -F: '{print $2}');done
