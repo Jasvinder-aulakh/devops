@@ -1,0 +1,57 @@
+######################
+##### Open files #####
+
+We need to keep our file limit high for any linux production server. Check the current value using ulimit -a
+
+We can configure this limit using /etc/security/limits.conf
+
+* hard nofile 300000
+* soft nofile 300000
+
+tomcat hard nofile 300000
+tomcat soft nofile 300000
+
+Note that we can also specify per user limit as shown above (special limits for tomcat user)
+
+The file descriptor limit for a running process can be seen in the following file under Max open files.
+
+$ cat /proc/<pid>/limits
+
+
+#######################
+### Ephemeral Ports ###
+Increase the number of ephemeal ports availabl to your application. The default value is 32768 - 61000
+
+######################
+### TIME_WAIT state ##
+
+TCP connections go through lot of states, last of them is TIME_WAIT state. The default TIME_WAIT timeout is for 2 minutes, Which means you’ll run out of available ports if you receive more than about 400 requests a second, or if we look back to how nginx does proxies, this actually translates to 200 requests per second.
+
+These parameters can be tuned using these settings in /etc/sysctl.conf
+
+net.ipv4.ip_local_port_range = 18000    65535
+net.ipv4.netfilter.ip_conntrack_tcp_timeout_time_wait = 1
+
+#########################
+### Connection Tracking #
+
+The next parameter we looked at was Connection Tracking. This is a side effect of using iptables. Since iptables needs to allow two-way communication between established HTTP and ssh connections, it needs to keep track of which connections are established, and it puts these into a connection tracking table. This table grows. And grows. And grows.
+
+You can see the current size of this table using sysctl net.netfilter.nf_conntrack_count and its limit using sysctl net.nf_conntrack_max. If count crosses max, your linux system will stop accepting new TCP connections and you’ll never know about this. The only indication that this has happened is a single line hidden somewhere in /var/log/syslog saying that you’re out of connection tracking entries. One line, once, when it first happens.
+
+
+#########################
+### Maximum number of pending connections on a socket
+
+During some of our initial load testing, we ran into a strange problem where we were unable to open more than approximately 128 concurrent connections at once.
+
+After some investigation, we learned about the following kernel parameter.
+
+net.core.somaxconn
+
+This kernel parameter is the size of the backlog of TCP connections waiting to be accepted by the application. If a connection indication arrives when the queue is full, the connection is refused. The default value for this parameters is 128 on most modern operating systems.
+
+Bumping up this limit in /etc/sysctl.conf helped us get rid of the “connection refused” issues on our Linux machines.
+
+
+
